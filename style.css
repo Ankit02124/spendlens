@@ -101,6 +101,11 @@ body.layout{
     margin-left: 0.75rem; 
 }
 
+/* NEW: Hide mobile filter button on desktop */
+#mobile-filter-btn {
+    display: none;
+}
+
 .header{ display:block; margin-top:.75rem; margin-bottom:1.25rem; }
 .header-title h1{ margin:0; font-size:1.8rem; color:#000; }
 .header-title p{ margin:.35rem 0 0; color:slategray; }
@@ -171,8 +176,63 @@ body.layout{
 .expenses-table tbody tr:hover{ background:#f9f9f9; }
 .overlay{ position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9; opacity:0; visibility:hidden; transition:opacity .25s, visibility .25s; }
 .overlay.active{ opacity:1; visibility:visible; }
-.budget-banner{ display:flex; align-items:center; gap:.5rem; background:#fff3cd; color:#664d03; border:1px solid #ffecb5; padding:.75rem 1rem; border-radius:10px; margin-bottom:1rem; }
+
+/* UPDATED: Budget Banner Styles */
+.budget-banner{ 
+    background:#fff3cd; 
+    color:#664d03; 
+    border:1px solid #ffecb5; 
+    padding: 0.75rem 1rem; 
+    border-radius:10px; 
+    margin-bottom:1rem; 
+    display: block; /* Changed from flex */
+}
 .budget-banner.hidden{ display:none; }
+.budget-banner-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.budget-banner-toggle {
+    margin-left: auto;
+    background: rgba(0,0,0,0.05);
+    border: none;
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    color: #664d03;
+    font-size: 0.85rem;
+}
+.budget-banner-toggle i {
+    margin-left: 0.25rem;
+    transition: transform 0.2s;
+}
+.budget-banner-toggle.open i {
+    transform: rotate(180deg);
+}
+.budget-banner-details {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    padding-left: 1.75rem; /* Align with text */
+    margin-top: 0;
+}
+.budget-banner-details.open {
+    max-height: 200px; /* Allow space to expand */
+    margin-top: 0.75rem;
+}
+.budget-banner-details ul {
+    margin: 0;
+    padding: 0;
+    list-style-type: disc;
+    padding-left: 1.25rem;
+}
+.budget-banner-details li {
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+}
+
 
 .home-hero { width: 100%; max-width: 1000px; text-align: center; padding: 3rem 1.5rem 2rem; margin-bottom: 2rem; background: rgba(255,255,255,0.7); backdrop-filter: blur(10px); border-radius: 20px; box-shadow: 0 8px 32px 0 rgba(44, 62, 80, 0.1); border: 1px solid rgba(255, 255, 255, 0.9); }
 .home-hero .hero-icon { font-size: 2.5rem; color: var(--brand); margin-bottom: 1rem; animation: bounceIcon 1.5s ease-in-out infinite; }
@@ -376,12 +436,12 @@ body.layout{
       gap: 0.5rem;
       width: 100%;
   }
-  .filter-controls {
-      flex-basis: 100%;
-      justify-content: center;
-      margin-bottom: 0.5rem;
-      padding: 0.2rem;
+
+  /* UPDATED: Hide original filter group */
+  #filter-controls-group {
+      display: none !important;
   }
+
   .filter-btn {
       padding: 0.4rem 0.8rem;
       font-size: 0.9rem;
@@ -391,7 +451,7 @@ body.layout{
       margin-left: 0;
       margin-bottom: 0.5rem;
       flex-basis: 100%;
-      display: block !important; /* Show and make block */
+      display: block; /* UPDATED: Removed !important */
   }
   .topbar-select {
       width: 100%;
@@ -404,6 +464,24 @@ body.layout{
       gap: 0.5rem;
       width: 100%;
   }
+
+  /* NEW: Show mobile filter button */
+  #mobile-filter-btn {
+      display: inline-flex;
+      flex-grow: 1;
+      min-width: 40px;
+      padding: 0.5rem;
+      height: 40px;
+      font-size: 1rem;
+      justify-content: center;
+  }
+  #mobile-filter-btn span {
+      display: none;
+  }
+  #mobile-filter-btn i {
+      margin-right: 0;
+  }
+
 
   /* NEW: Shrink buttons to icons on mobile */
   .topbar-actions-group .ghost-btn span,
