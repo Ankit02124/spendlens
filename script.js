@@ -1,7 +1,7 @@
 // ==== State ====
 var userName = 'User'; 
 var allExpenses = [];
-var budgets = {}; 
+var budgets = {}; // UPDATED: Will store { "YYYY-MM": { total: 500, categories: { "Food": 100 } } }
 var incomes = {}; 
 var upcomingPayments = []; 
 var allBillPhotos = []; 
@@ -57,8 +57,11 @@ var collapseToggle = document.getElementById('collapse-toggle');
 var mobileNav = document.querySelector('.mobile-bottom-nav');
 var mobileNavLinks = document.querySelectorAll('.mobile-nav-link');
 
+// UPDATED: Budget Banner DOM
 var budgetBanner = document.getElementById('budget-banner');
 var budgetBannerText = document.getElementById('budget-banner-text');
+var budgetBannerToggle = document.getElementById('budget-banner-toggle');
+var budgetBannerDetails = document.getElementById('budget-banner-details');
 
 // Budget modal 
 var budgetModal = document.getElementById('budget-modal');
@@ -141,12 +144,32 @@ var editDeletePhotoBtn = document.getElementById('edit-delete-photo-btn');
 var editPhotoUploadContainer = document.getElementById('edit-photo-upload-container');
 var editBillPhotoUploadInput = document.getElementById('edit-bill-photo-upload');
 
+// NEW: Mobile filter modal DOM
+var mobileFilterBtn = document.getElementById('mobile-filter-btn');
+var mobileFilterModal = document.getElementById('mobile-filter-modal');
+var mobileFilterClose = document.getElementById('mobile-filter-close');
+var mobileFilterOptions = document.getElementById('mobile-filter-options');
+
+// NEW: Notification Modal DOM
+var notificationModal = document.getElementById('notification-modal');
+var notificationModalClose = document.getElementById('notification-modal-close');
+var notificationModalOk = document.getElementById('notification-modal-ok');
+var notificationModalMessage = document.getElementById('notification-modal-message');
+
 
 // ==== Helpers ====
 function ymKey(dateObj){ return `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}`; }
 function getCurrentMonthKey(){ return ymKey(new Date()); }
-function getBudgetForMonth(key){ return budgets[key] || null; }
-function setBudgetForMonth(key, amount){ budgets[key]=amount; }
+
+// UPDATED: getBudgetForMonth to return object or null
+function getBudgetForMonth(key){ 
+    // Returns the budget *object* or null
+    return budgets[key] || null; 
+}
+// UPDATED: setBudgetForMonth to accept an object
+function setBudgetForMonth(key, budgetObject){ 
+    budgets[key] = budgetObject; 
+}
 
 function getIncomeForMonth(key){ return incomes[key] || null; } 
 function setIncomeForMonth(key, amount){ incomes[key]=amount; } 
@@ -166,6 +189,16 @@ function showWelcomeModal(isRename = false) {
 function hideWelcomeModal() { if (welcomeModal) welcomeModal.classList.remove('show'); welcomeModal.setAttribute('aria-hidden', 'true'); }
 function addDays(dateStr, days) { const date = new Date(dateStr); date.setDate(date.getDate() + days); return date.toISOString().split('T')[0]; }
 
+// NEW: Notification Modal Functions
+function showNotificationModal(message) {
+    if (notificationModalMessage) notificationModalMessage.innerHTML = message; // Use .innerHTML to allow line breaks
+    if (notificationModal) notificationModal.classList.add('show');
+}
+function hideNotificationModal() {
+    if (notificationModal) notificationModal.classList.remove('show');
+}
+
+
 // ==== Persistence Functions ====
 function saveData() {
     const data = {
@@ -180,7 +213,7 @@ function saveData() {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch (e) {
         console.error("Could not save to localStorage:", e);
-        alert("Warning: Storage is full. Some data may not be saved.");
+        showNotificationModal("Warning: Storage is full. Some data may not be saved.");
     }
 }
 
@@ -219,7 +252,7 @@ function handleAddPayment(e) {
     e.preventDefault();
     const isRepeating = paymentRepeatCheckbox.checked;
     const repeatDays = isRepeating ? parseInt(paymentRepeatDaysInput.value) : 0;
-    if (isRepeating && (!repeatDays || repeatDays <= 0)) { alert('Please enter a valid number of days to repeat.'); paymentRepeatDaysInput.focus(); return; }
+    if (isRepeating && (!repeatDays || repeatDays <= 0)) { showNotificationModal('Please enter a valid number of days to repeat.'); paymentRepeatDaysInput.focus(); return; }
     const newPayment = { id: Date.now(), desc: paymentDescInput.value, amount: parseFloat(paymentAmountInput.value), date: paymentDateInput.value, isRepeating: isRepeating, repeatDays: repeatDays };
     if (newPayment.amount > 0) { 
         upcomingPayments.push(newPayment); 
@@ -246,6 +279,7 @@ function handlePaymentDone(id) {
     }
 }
 function populateUpcomingPayments() {
+    if (!upcomingPaymentsList) return; // Guard
     upcomingPaymentsList.innerHTML = '';
     const sortedPayments = [...upcomingPayments].sort((a, b) => new Date(a.date) - new Date(b.date));
     if (!sortedPayments.length) { upcomingPaymentsList.innerHTML = '<li>No upcoming payments scheduled.</li>'; return; }
@@ -300,6 +334,7 @@ function addBillPhotoToGallery(file, expense) {
     reader.readAsDataURL(file);
 }
 function populateBillPhotosGallery() {
+    if (!billGallery) return; // Guard
     billGallery.innerHTML = '';
     if (!allBillPhotos.length) { billGallery.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">No bills or receipts uploaded yet. Add an expense to include a photo!</p>'; return; }
     const sortedPhotos = [...allBillPhotos].sort((a, b) => b.id - a.id);
@@ -312,8 +347,9 @@ function populateBillPhotosGallery() {
 }
 function updateTopBarActions(viewId) { 
     const isFilterView = viewId === 'dashboard' || viewId === 'all-expenses';
-    filterControlsGroup.style.display = isFilterView ? 'flex' : 'none';
-    timeFilterGroup.style.display = isFilterView ? (isMobile() ? 'block' : 'flex') : 'none'; // Handle mobile layout
+    // Use 'style.display' to let CSS handle the 'flex' or 'none'
+    if (filterControlsGroup) filterControlsGroup.style.display = isFilterView ? '' : 'none'; 
+    if (timeFilterGroup) timeFilterGroup.style.display = isFilterView ? '' : 'none';
 }
 
 // Edit modal functions
@@ -358,6 +394,32 @@ function handleDeletePhotoInEditModal() {
 }
 function handleViewPhotoInEditModal() { if (!expenseIdToEdit) return; const photo = allBillPhotos.find(p => p.expenseId === expenseIdToEdit); if (photo) { showPhotoModal(photo.dataUrl); } }
 
+
+// NEW: Helper function for category budgets (with guard)
+function addCategoryBudgetRow(category = 'Food & Dining', amount = '') {
+    const container = document.getElementById('category-budgets-container');
+    if (!container) return; // FIX: Guard against null
+    const row = document.createElement('div');
+    row.className = 'form-section category-budget-row';
+    row.innerHTML = `
+        <div class="form-group">
+            <select class="category-budget-select" style="width:100%; padding:.75rem; border:1px solid #ddd; border-radius:10px; font-family:inherit;">
+                <option>Food & Dining</option>
+                <option>Travel</option>
+                <option>Education</option>
+                <option>Entertainment</option>
+                <option>Shopping</option>
+                <option>Other</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <input type="number" class="category-budget-amount" placeholder="₹ 0.00" step="0.01" min="0" value="${amount}" style="width:100%; padding:.75rem; border:1px solid #ddd; border-radius:10px; font-family:inherit;"/>
+        </div>
+    `;
+    row.querySelector('.category-budget-select').value = category;
+    container.appendChild(row);
+}
+
 // ==== Init ====
 function initializeApp(){
   const dataLoaded = loadData();
@@ -369,24 +431,108 @@ function initializeApp(){
   const now = new Date(); if(budgetMonthInput) budgetMonthInput.value = formatMonthLabel(now);
   if(incomeMonthInput) incomeMonthInput.value = formatMonthLabel(now); if(paymentDateInput) paymentDateInput.value = new Date().toISOString().split('T')[0];
 
-  deleteModalClose.addEventListener('click', hideDeleteModal); deleteCancel.addEventListener('click', hideDeleteModal); deleteConfirm.addEventListener('click', handleDeleteExpense);
-  paymentRepeatCheckbox.addEventListener('change', function() { if (this.checked) { repeatAfterGroup.classList.remove('hidden'); paymentRepeatDaysInput.disabled = false; paymentRepeatDaysInput.setAttribute('required', 'required'); paymentRepeatDaysInput.focus(); } else { repeatAfterGroup.classList.add('hidden'); paymentRepeatDaysInput.disabled = true; paymentRepeatDaysInput.removeAttribute('required'); paymentRepeatDaysInput.value = ''; } });
-  photoModalClose.addEventListener('click', hidePhotoModal);
-  setIncomeBtn.addEventListener('click', () => showIncomeModal(true)); incomeModalClose.addEventListener('click', hideIncomeModal); incomeCancel.addEventListener('click', hideIncomeModal);
-  incomeForm.addEventListener('submit', (e) => { e.preventDefault(); const val = Number(incomeAmountInput.value); if (!isFinite(val) || val < 0) { incomeAmountInput.focus(); incomeAmountInput.select(); return; } const key = getCurrentMonthKey(); setIncomeForMonth(key, val); saveData(); updateHomeSummary(); applyFilters(); hideIncomeModal(); });
-  addPaymentBtn.addEventListener('click', showAddPaymentModal); addPaymentModalClose.addEventListener('click', hideAddPaymentModal); paymentCancel.addEventListener('click', hideAddPaymentModal); addPaymentForm.addEventListener('submit', handleAddPayment);
-  deletePaymentModalClose.addEventListener('click', hideDeletePaymentModal); deletePaymentCancel.addEventListener('click', hideDeletePaymentModal); deletePaymentConfirm.addEventListener('click', handlePaymentDeleteConfirm);
-  budgetForm.addEventListener('submit', (e)=>{ e.preventDefault(); const val=Number(budgetAmountInput.value); if(!isFinite(val)||val<0){ budgetAmountInput.focus(); budgetAmountInput.select(); return; } const key=getCurrentMonthKey(); setBudgetForMonth(key,val); saveData(); updateHomeSummary(); applyFilters(); hideBudgetModal(); });
+  // NEW: Notification modal listeners
+  if (notificationModalClose) notificationModalClose.addEventListener('click', hideNotificationModal);
+  if (notificationModalOk) notificationModalOk.addEventListener('click', hideNotificationModal);
 
-  editExpenseModalClose.addEventListener('click', hideEditModal); editExpenseCancel.addEventListener('click', hideEditModal); editExpenseForm.addEventListener('submit', handleEditExpenseSubmit);
-  editDeletePhotoBtn.addEventListener('click', handleDeletePhotoInEditModal); editViewPhotoBtn.addEventListener('click', handleViewPhotoInEditModal); editBillPhotoPreview.addEventListener('click', handleViewPhotoInEditModal);
-  editExpenseTypeSelector.querySelectorAll('.type-box').forEach(box => { box.addEventListener('click', function() { editExpenseTypeSelector.querySelectorAll('.type-box').forEach(b => b.classList.remove('selected')); this.classList.add('selected'); editExpenseTypeInput.value = this.dataset.type; }); });
+  // NEW: Budget banner toggle listener
+  if (budgetBannerToggle) {
+    budgetBannerToggle.addEventListener('click', () => {
+        budgetBannerDetails.classList.toggle('open');
+        budgetBannerToggle.classList.toggle('open');
+    });
+  }
+
+  if (deleteModalClose) deleteModalClose.addEventListener('click', hideDeleteModal); 
+  if (deleteCancel) deleteCancel.addEventListener('click', hideDeleteModal); 
+  if (deleteConfirm) deleteConfirm.addEventListener('click', handleDeleteExpense);
+  if (paymentRepeatCheckbox) paymentRepeatCheckbox.addEventListener('change', function() { if (this.checked) { repeatAfterGroup.classList.remove('hidden'); paymentRepeatDaysInput.disabled = false; paymentRepeatDaysInput.setAttribute('required', 'required'); paymentRepeatDaysInput.focus(); } else { repeatAfterGroup.classList.add('hidden'); paymentRepeatDaysInput.disabled = true; paymentRepeatDaysInput.removeAttribute('required'); paymentRepeatDaysInput.value = ''; } });
+  if (photoModalClose) photoModalClose.addEventListener('click', hidePhotoModal);
+  if (setIncomeBtn) setIncomeBtn.addEventListener('click', () => showIncomeModal(true)); 
+  if (incomeModalClose) incomeModalClose.addEventListener('click', hideIncomeModal); 
+  if (incomeCancel) incomeCancel.addEventListener('click', hideIncomeModal);
+  if (incomeForm) incomeForm.addEventListener('submit', (e) => { e.preventDefault(); const val = Number(incomeAmountInput.value); if (!isFinite(val) || val < 0) { incomeAmountInput.focus(); incomeAmountInput.select(); return; } const key = getCurrentMonthKey(); setIncomeForMonth(key, val); saveData(); updateHomeSummary(); applyFilters(); hideIncomeModal(); });
+  if (addPaymentBtn) addPaymentBtn.addEventListener('click', showAddPaymentModal); 
+  if (addPaymentModalClose) addPaymentModalClose.addEventListener('click', hideAddPaymentModal); 
+  if (paymentCancel) paymentCancel.addEventListener('click', hideAddPaymentModal); 
+  if (addPaymentForm) addPaymentForm.addEventListener('submit', handleAddPayment);
+  if (deletePaymentModalClose) deletePaymentModalClose.addEventListener('click', hideDeletePaymentModal); 
+  if (deletePaymentCancel) deletePaymentCancel.addEventListener('click', hideDeletePaymentModal); 
+  if (deletePaymentConfirm) deletePaymentConfirm.addEventListener('click', handlePaymentDeleteConfirm);
+  
+  // ******** CHANGED BLOCK START ********
+  // UPDATED: budgetForm submit listener with NEW validation
+  if (budgetForm) budgetForm.addEventListener('submit', (e)=>{ 
+    e.preventDefault(); 
+    const totalVal = Number(budgetAmountInput.value); 
+    if (!isFinite(totalVal) || totalVal < 0){ 
+        // USE NEW NOTIFICATION
+        showNotificationModal("Please enter a valid total budget amount.");
+        budgetAmountInput.focus(); 
+        budgetAmountInput.select(); 
+        return; 
+    } 
+    
+    // --- NEW VALIDATION LOGIC ---
+    let categorySum = 0;
+    const tempCategories = {}; // To store for saving
+
+    document.querySelectorAll('.category-budget-row').forEach(row => {
+        const category = row.querySelector('.category-budget-select').value;
+        const amount = Number(row.querySelector('.category-budget-amount').value);
+        if (category && amount > 0) {
+            // Accumulate for validation
+            categorySum += amount;
+            // Store for saving
+            tempCategories[category] = (tempCategories[category] || 0) + amount;
+        }
+    });
+
+    if (categorySum > totalVal) {
+        // USE NEW NOTIFICATION
+        showNotificationModal(`Error: The sum of your category budgets (₹${categorySum.toFixed(2)}) exceeds your total budget (₹${totalVal.toFixed(2)}).<br><br>Please adjust your amounts.`);
+        return; // Stop the save, keep modal open
+    }
+    // --- END NEW VALIDATION LOGIC ---
+
+    const key = getCurrentMonthKey(); 
+    const newBudget = {
+        total: totalVal,
+        categories: tempCategories // Use the already collected categories
+    };
+
+    setBudgetForMonth(key, newBudget); // Save the new object
+    saveData(); 
+    updateHomeSummary(); 
+    applyFilters(); 
+    hideBudgetModal(); 
+  });
+  // ******** CHANGED BLOCK END ********
+
+  // NEW: Add category budget row listener (with guard)
+  const addCatBudgetBtn = document.getElementById('add-category-budget-btn');
+  if (addCatBudgetBtn) {
+      addCatBudgetBtn.addEventListener('click', () => {
+        addCategoryBudgetRow();
+      });
+  } else {
+      console.warn("Spendlens: 'add-category-budget-btn' not found in HTML. Category budget feature will be limited.");
+  }
+
+
+  if (editExpenseModalClose) editExpenseModalClose.addEventListener('click', hideEditModal); 
+  if (editExpenseCancel) editExpenseCancel.addEventListener('click', hideEditModal); 
+  if (editExpenseForm) editExpenseForm.addEventListener('submit', handleEditExpenseSubmit);
+  if (editDeletePhotoBtn) editDeletePhotoBtn.addEventListener('click', handleDeletePhotoInEditModal); 
+  if (editViewPhotoBtn) editViewPhotoBtn.addEventListener('click', handleViewPhotoInEditModal); 
+  if (editBillPhotoPreview) editBillPhotoPreview.addEventListener('click', handleViewPhotoInEditModal);
+  if (editExpenseTypeSelector) editExpenseTypeSelector.querySelectorAll('.type-box').forEach(box => { box.addEventListener('click', function() { editExpenseTypeSelector.querySelectorAll('.type-box').forEach(b => b.classList.remove('selected')); this.classList.add('selected'); editExpenseTypeInput.value = this.dataset.type; }); });
 
   if (!dataLoaded || userName === 'User') {
       showWelcomeModal(false);
   }
-  renameBtn.addEventListener('click', () => { showWelcomeModal(true); });
-  welcomeForm.addEventListener('submit', function(e) { e.preventDefault(); const name = userNameInput.value.trim(); if (name) { saveUserName(name); saveData(); updateUserNameDisplay(); hideWelcomeModal(); if (document.getElementById('home-view').classList.contains('active')) { dashboardSubtitle.textContent=`Welcome to Spendlens, ${userName}!`; } } });
+  if (renameBtn) renameBtn.addEventListener('click', () => { showWelcomeModal(true); });
+  if (welcomeForm) welcomeForm.addEventListener('submit', function(e) { e.preventDefault(); const name = userNameInput.value.trim(); if (name) { saveUserName(name); saveData(); updateUserNameDisplay(); hideWelcomeModal(); if (document.getElementById('home-view').classList.contains('active')) { dashboardSubtitle.textContent=`Welcome to Spendlens, ${userName}!`; } } });
 
   const homeCtaEmpty = document.getElementById('home-cta-add-first');
   const homeCtaManage = document.getElementById('home-cta-manage');
@@ -396,6 +542,54 @@ function initializeApp(){
   if (homeCtaAdd) homeCtaAdd.addEventListener('click', () => switchView('add-expense'));
 
   updateUserNameDisplay();
+
+  // NEW: Mobile Filter Modal Logic (with guards)
+  if (filterButtons && mobileFilterOptions) {
+      filterButtons.forEach(btn => {
+          const clone = btn.cloneNode(true);
+          clone.style.width = '100%';
+          clone.style.padding = '0.75rem';
+          clone.style.justifyContent = 'center';
+          clone.classList.remove('active'); // Remove active state
+          
+          if (btn.classList.contains('active')) {
+              clone.classList.add('active'); 
+          }
+          
+          clone.addEventListener('click', function() {
+              filterButtons.forEach(b => b.classList.remove('active'));
+              const originalBtn = document.querySelector(`.filter-btn[data-filter="${this.dataset.filter}"]`);
+              if (originalBtn) originalBtn.classList.add('active');
+              
+              mobileFilterOptions.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+              this.classList.add('active');
+              
+              applyFilters();
+              if (mobileFilterModal) mobileFilterModal.classList.remove('show');
+          });
+          mobileFilterOptions.appendChild(clone);
+      });
+  }
+
+  if (mobileFilterBtn) mobileFilterBtn.addEventListener('click', () => {
+      const currentFilter = document.querySelector('.filter-btn.active')?.dataset.filter || 'all';
+      if (mobileFilterOptions) {
+          mobileFilterOptions.querySelectorAll('.filter-btn').forEach(b => {
+              if (b.dataset.filter === currentFilter) {
+                  b.classList.add('active');
+              } else {
+                  b.classList.remove('active');
+              }
+          });
+      }
+      if (mobileFilterModal) mobileFilterModal.classList.add('show');
+  });
+
+  if (mobileFilterClose) mobileFilterClose.addEventListener('click', () => {
+      if (mobileFilterModal) mobileFilterModal.classList.remove('show');
+  });
+  // END: Mobile Filter Modal Logic
+
 }
 
 function switchView(viewId){
@@ -419,9 +613,10 @@ function switchView(viewId){
   if (viewId !== 'dashboard' && viewId !== 'all-expenses') {
     if (currentFilter && typeFilter !== 'all') {
         currentFilter.classList.remove('active');
-        document.querySelector('.filter-btn[data-filter="all"]').classList.add('active');
+        const allFilterBtn = document.querySelector('.filter-btn[data-filter="all"]');
+        if (allFilterBtn) allFilterBtn.classList.add('active');
     }
-    timeFilterSelect.value = 'this-month'; // Reset time filter
+    if (timeFilterSelect) timeFilterSelect.value = 'this-month'; // Reset time filter
   }
 
   if(viewId==='home'){ dashboardTitle.textContent='Home'; dashboardSubtitle.textContent=`Welcome to Spendlens, ${userName}!`; updateHomeSummary(); }
@@ -429,27 +624,26 @@ function switchView(viewId){
     dashboardTitle.textContent='Financial Dashboard'; 
     const now=new Date(); 
     dashboardSubtitle.textContent=`${now.toLocaleString('default',{month:'long'})} ${now.getFullYear()} • A lens to view your spending habits`; 
-    timeFilterSelect.value = 'this-month'; // Default to this month
+    if (timeFilterSelect) timeFilterSelect.value = 'this-month'; // Default to this month
     applyFilters(); // Apply default filters
     populateUpcomingPayments(); 
   }
-  else if(viewId==='add-expense'){ dashboardTitle.textContent='Add Expense'; dashboardSubtitle.textContent='Record a new transaction'; expenseDateInput.value=new Date().toISOString().split('T')[0]; const monthKey = getCurrentMonthKey(); if (getIncomeForMonth(monthKey) === null) { showIncomeModal(true); } }
+  else if(viewId==='add-expense'){ dashboardTitle.textContent='Add Expense'; dashboardSubtitle.textContent='Record a new transaction'; if (expenseDateInput) expenseDateInput.value=new Date().toISOString().split('T')[0]; const monthKey = getCurrentMonthKey(); if (getIncomeForMonth(monthKey) === null) { showIncomeModal(true); } }
   else if(viewId==='all-expenses'){ 
     dashboardTitle.textContent='All Expenses'; 
     dashboardSubtitle.textContent='Browse every recorded transaction'; 
-    timeFilterSelect.value = 'this-month'; // Default to this month
+    if (timeFilterSelect) timeFilterSelect.value = 'this-month'; // Default to this month
     applyFilters(); // Apply default filters
   }
-  // CHANGED: Title and description
   else if(viewId==='bill-photos'){ dashboardTitle.textContent='Bills & Receipts'; dashboardSubtitle.textContent='Manage your uploaded bills'; populateBillPhotosGallery(); } 
 }
 
+// UPDATED: updateHomeSummary logic for new budget object
 function updateHomeSummary(){
   const now = new Date(); const m = now.getMonth(); const y = now.getFullYear(); const monthKey=getCurrentMonthKey();
   const thisMonthExpenses = allExpenses.filter(e=>{ const d=new Date(e.date); return d.getMonth()===m && d.getFullYear()===y; });
   const thisMonthTotal = thisMonthExpenses.reduce((s,e)=>s+Number(e.amount||0),0);
   
-  // CHANGED: Daily Avg calculation to be based on current day, not days in month
   const dailyAvg = thisMonthTotal > 0 ? thisMonthTotal / now.getDate() : 0;
   const income = getIncomeForMonth(monthKey); const balance = income != null ? income - thisMonthTotal : null; 
   
@@ -457,35 +651,51 @@ function updateHomeSummary(){
   const heroActive = document.getElementById('home-hero-active');
   const summarySection = document.getElementById('home-summary-section');
 
-  if (allExpenses.length === 0) {
-      heroEmpty.classList.remove('hidden');
-      heroActive.classList.add('hidden');
-      summarySection.classList.add('hidden');
-  } else {
-      heroEmpty.classList.add('hidden');
-      heroActive.classList.remove('hidden');
-      summarySection.classList.remove('hidden');
+  if (heroEmpty && heroActive && summarySection) {
+      if (allExpenses.length === 0) {
+          heroEmpty.classList.remove('hidden');
+          heroActive.classList.add('hidden');
+          summarySection.classList.add('hidden');
+      } else {
+          heroEmpty.classList.add('hidden');
+          heroActive.classList.remove('hidden');
+          summarySection.classList.remove('hidden');
+      }
   }
 
-  homeThisMonth.textContent = `₹${thisMonthTotal.toFixed(2)}`; homeDailyAvg.textContent = `₹${dailyAvg.toFixed(2)}`;
-  if (income != null) { homeThisMonthIncome.textContent = `₹${Number(income).toFixed(2)}`; homeIncomeRemark.textContent = 'Total Income'; homeBalance.textContent = `₹${balance.toFixed(2)}`; } else { homeThisMonthIncome.textContent = '—'; homeIncomeRemark.textContent = 'Tap "Set Income" to start'; homeBalance.textContent = '—'; }
-  const budget = getBudgetForMonth(monthKey); if(budget!=null){ homeBudgetRemark.textContent = thisMonthTotal <= Number(budget) ? `Budget: ₹${Number(budget).toFixed(2)}` : `Budget exceeded by: ₹${(thisMonthTotal - budget).toFixed(2)}`; } else { homeBudgetRemark.textContent='Tap “Set Budget” to start'; }
+  if (homeThisMonth) homeThisMonth.textContent = `₹${thisMonthTotal.toFixed(2)}`; 
+  if (homeDailyAvg) homeDailyAvg.textContent = `₹${dailyAvg.toFixed(2)}`;
+  if (income != null) { 
+      if (homeThisMonthIncome) homeThisMonthIncome.textContent = `₹${Number(income).toFixed(2)}`; 
+      if (homeIncomeRemark) homeIncomeRemark.textContent = 'Total Income'; 
+      if (homeBalance) homeBalance.textContent = `₹${balance.toFixed(2)}`; 
+  } else { 
+      if (homeThisMonthIncome) homeThisMonthIncome.textContent = '—'; 
+      if (homeIncomeRemark) homeIncomeRemark.textContent = 'Tap "Set Income" to start'; 
+      if (homeBalance) homeBalance.textContent = '—'; 
+  }
+  
+  const budget = getBudgetForMonth(monthKey); // This is now an object
+  if(budget != null && budget.total){ 
+      const totalBudget = Number(budget.total);
+      if (homeBudgetRemark) homeBudgetRemark.textContent = thisMonthTotal <= totalBudget ? `Budget: ₹${totalBudget.toFixed(2)}` : `Budget exceeded by: ₹${(thisMonthTotal - totalBudget).toFixed(2)}`; 
+  } else { 
+      if (homeBudgetRemark) homeBudgetRemark.textContent='Tap “Set Budget” to start'; 
+  }
 }
 
 // NEW: Central filter function
 function getFilteredExpenses(typeFilter = 'all', timeFilter = 'this-month') {
     let filtered = allExpenses;
     
-    // 1. Type filter
     if (typeFilter === 'personal') {
         filtered = allExpenses.filter(e => e.type === 'personal');
     } else if (typeFilter === 'organization') {
         filtered = allExpenses.filter(e => e.type === 'organization');
     }
     
-    // 2. Time filter
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // Start of today
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); 
 
     switch (timeFilter) {
         case 'this-month':
@@ -494,62 +704,110 @@ function getFilteredExpenses(typeFilter = 'all', timeFilter = 'this-month') {
                 return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
             });
         case 'last-7-days':
-            const sevenDaysAgo = new Date(today.getTime() - (6 * 24 * 60 * 60 * 1000)); // 6 days ago, so total 7 days
+            const sevenDaysAgo = new Date(today.getTime() - (6 * 24 * 60 * 60 * 1000)); 
             return filtered.filter(e => new Date(e.date) >= sevenDaysAgo);
         case 'last-30-days':
-            const thirtyDaysAgo = new Date(today.getTime() - (29 * 24 * 60 * 60 * 1000)); // 29 days ago
+            const thirtyDaysAgo = new Date(today.getTime() - (29 * 24 * 60 * 60 * 1000)); 
             return filtered.filter(e => new Date(e.date) >= thirtyDaysAgo);
         case 'this-year':
             return filtered.filter(e => new Date(e.date).getFullYear() === now.getFullYear());
         case 'all':
         default:
-            return filtered; // No time filter
+            return filtered; 
     }
 }
 
 // NEW: Central function to apply filters from UI
 function applyFilters() {
     const typeFilter = document.querySelector('.filter-btn.active')?.dataset.filter || 'all';
-    const timeFilter = timeFilterSelect.value;
-    const currentView = document.querySelector('.view.active').id;
+    const timeFilter = timeFilterSelect ? timeFilterSelect.value : 'this-month';
+    const currentView = document.querySelector('.view.active');
+    if (!currentView) return;
     
-    if (currentView === 'dashboard-view') {
+    if (currentView.id === 'dashboard-view') {
         populateDashboard(typeFilter, timeFilter);
-    } else if (currentView === 'all-expenses-view') {
+    } else if (currentView.id === 'all-expenses-view') {
         populateAllExpensesTable(typeFilter, timeFilter);
     }
 }
 
-// UPDATED: populateDashboard to use new filters
+// ******** CHANGED BLOCK START ********
+// UPDATED: populateDashboard to handle *all* budget alerts
 function populateDashboard(typeFilter, timeFilter){
   const filteredExpenses = getFilteredExpenses(typeFilter, timeFilter);
   
   const now=new Date(); const cm=now.getMonth(); const cy=now.getFullYear(); const monthKey=getCurrentMonthKey();
   
-  // Calculate stats based on 'this-month' regardless of filter, except for 'This Month Spent'
   const thisMonthExpenses = getFilteredExpenses(typeFilter, 'this-month');
   const thisMonthTotal = thisMonthExpenses.reduce((s,e)=>s+Number(e.amount||0),0);
   const dailyAvg = thisMonthTotal > 0 ? thisMonthTotal / new Date().getDate() : 0;
   
   const income = getIncomeForMonth(monthKey) || 0; const balance = income - thisMonthTotal;
-  monthlyIncome.textContent = `₹${Number(income).toFixed(2)}`; 
-  thisMonthSpent.textContent=`₹${thisMonthTotal.toFixed(2)}`; // This always shows 'this month'
-  dailyAverage.textContent=`₹${dailyAvg.toFixed(2)}`; 
-  remainingBalance.textContent=`₹${balance.toFixed(2)}`;
+  if (monthlyIncome) monthlyIncome.textContent = `₹${Number(income).toFixed(2)}`; 
+  if (thisMonthSpent) thisMonthSpent.textContent=`₹${thisMonthTotal.toFixed(2)}`; 
+  if (dailyAverage) dailyAverage.textContent=`₹${dailyAvg.toFixed(2)}`; 
+  if (remainingBalance) remainingBalance.textContent=`₹${balance.toFixed(2)}`;
   
-  const budget=getBudgetForMonth(monthKey); 
-  if(budget!=null && thisMonthTotal>Number(budget)){ budgetBannerText.textContent = `Alert: You’ve crossed your ${now.toLocaleString('default',{month:'long'})} ${cy} budget of ₹${Number(budget).toFixed(2)}.`; budgetBanner.classList.remove('hidden'); } 
-  else budgetBanner.classList.add('hidden');
+  const budgetData = getBudgetForMonth(monthKey); 
   
-  // Recent expenses should use the filtered list
-  recentExpensesList.innerHTML=''; 
-  const sortedRecent=[...filteredExpenses].sort((a,b)=> new Date(b.date)-new Date(a.date)).slice(0,5);
-  if(!sortedRecent.length) recentExpensesList.innerHTML='<li>No expenses found for this period.</li>';
-  else sortedRecent.forEach(exp=>{ const li=document.createElement('li'); const mood=exp.mood? ` • <span>${moodLabel(exp.mood)}</span>`:''; li.innerHTML=`<div class="expense-item-info"><h4>${escapeHtml(exp.desc)} <span class="expense-category ${escapeHtml(exp.cat.split(' ')[0].toLowerCase())}">${escapeHtml(exp.cat)}</span></h4><p>${escapeHtml(exp.date)}${mood}</p></div><div class="expense-item-amount">₹${Number(exp.amount).toFixed(2)}</div>`; recentExpensesList.appendChild(li); });
+  // NEW: Collect all alerts
+  let budgetAlerts = []; 
   
-  // Charts should use the filtered list
+  if (budgetData && budgetData.total && thisMonthTotal > Number(budgetData.total)) {
+      budgetAlerts.push(`<b>Total Budget:</b> Crossed by ₹${(thisMonthTotal - budgetData.total).toFixed(2)}`);
+  } 
+  
+  if (budgetData && budgetData.categories) {
+      const categoryTotals = thisMonthExpenses.reduce((acc, e) => {
+          acc[e.cat] = (acc[e.cat] || 0) + Number(e.amount);
+          return acc;
+      }, {});
+      
+      // Check *all* categories, don't break
+      for (const category in budgetData.categories) {
+          const categoryBudget = budgetData.categories[category];
+          const categorySpent = categoryTotals[category] || 0;
+          if (categorySpent > categoryBudget) {
+              budgetAlerts.push(`<b>${category}:</b> Crossed by ₹${(categorySpent - categoryBudget).toFixed(2)}`);
+          }
+      }
+  }
+  
+  // Now, render the alerts
+  if (budgetBanner) {
+      if (budgetAlerts.length > 0) {
+          // Set summary text
+          if (budgetBannerText) budgetBannerText.textContent = `Budget crossed in ${budgetAlerts.length} ${budgetAlerts.length > 1 ? 'areas' : 'area'}.`;
+          
+          // Populate details
+          if (budgetBannerDetails) {
+              budgetBannerDetails.innerHTML = `<ul>${budgetAlerts.map(alert => `<li>${alert}</li>`).join('')}</ul>`;
+          }
+          
+          // Show banner and toggle button
+          budgetBanner.classList.remove('hidden');
+          if (budgetBannerToggle) budgetBannerToggle.classList.remove('hidden');
+
+      } else {
+          // Hide all
+          budgetBanner.classList.add('hidden');
+          if (budgetBannerToggle) budgetBannerToggle.classList.add('hidden');
+          if (budgetBannerDetails) budgetBannerDetails.classList.remove('open'); // Close it
+          if (budgetBannerToggle) budgetBannerToggle.classList.remove('open');
+      }
+  }
+  
+  if (recentExpensesList) {
+      recentExpensesList.innerHTML=''; 
+      const sortedRecent=[...filteredExpenses].sort((a,b)=> new Date(b.date)-new Date(a.date)).slice(0,5);
+      if(!sortedRecent.length) recentExpensesList.innerHTML='<li>No expenses found for this period.</li>';
+      else sortedRecent.forEach(exp=>{ const li=document.createElement('li'); const mood=exp.mood? ` • <span>${moodLabel(exp.mood)}</span>`:''; li.innerHTML=`<div class="expense-item-info"><h4>${escapeHtml(exp.desc)} <span class="expense-category ${escapeHtml(exp.cat.split(' ')[0].toLowerCase())}">${escapeHtml(exp.cat)}</span></h4><p>${escapeHtml(exp.date)}${mood}</p></div><div class="expense-item-amount">₹${Number(exp.amount).toFixed(2)}</div>`; recentExpensesList.appendChild(li); });
+  }
+  
   updateCharts(filteredExpenses);
 }
+// ******** CHANGED BLOCK END ********
+
 
 function updateCharts(data){
   const trendCanvas=document.getElementById('spending-trend-chart'); const catCanvas=document.getElementById('categories-chart'); if(!trendCanvas||!catCanvas) return;
@@ -563,6 +821,7 @@ function updateCharts(data){
 
 // UPDATED: populateAllExpensesTable to use new filters
 function populateAllExpensesTable(typeFilter, timeFilter){
+  if (!allExpensesTbody) return; // Guard
   allExpensesTbody.innerHTML=''; 
   const filteredExpenses = getFilteredExpenses(typeFilter, timeFilter);
   
@@ -632,23 +891,60 @@ function populateAllExpensesTable(typeFilter, timeFilter){
   });
 }
 
-function openSidebarStatic(){ sidebar.classList.remove('open'); sidebar.setAttribute('aria-hidden','false'); }
+function openSidebarStatic(){ if (sidebar) { sidebar.classList.remove('open'); sidebar.setAttribute('aria-hidden','false'); } }
 
-collapseToggle.addEventListener('click', function(){ if(isMobile()) return; sidebar.classList.toggle('collapsed'); this.querySelector('i').classList.toggle('fa-angles-left'); this.querySelector('i').classList.toggle('fa-angles-right'); });
-window.addEventListener('resize', ()=>{ if(!isMobile()) { sidebar.classList.remove('collapsed'); openSidebarStatic(); } updateTopBarActions(document.querySelector('.view.active').id); });
-document.querySelector('.sidebar-nav ul').addEventListener('click', function(e){ const link=e.target.closest('a[data-view]'); if(!link) return; e.preventDefault(); switchView(link.dataset.view); });
-mobileNav.addEventListener('click', function(e) { const link = e.target.closest('a[data-view]'); if (!link) return; e.preventDefault(); switchView(link.dataset.view); });
+if (collapseToggle) collapseToggle.addEventListener('click', function(){ if(isMobile()) return; if (sidebar) sidebar.classList.toggle('collapsed'); this.querySelector('i').classList.toggle('fa-angles-left'); this.querySelector('i').classList.toggle('fa-angles-right'); });
+window.addEventListener('resize', ()=>{ if(!isMobile()) { openSidebarStatic(); } const activeView = document.querySelector('.view.active'); if (activeView) updateTopBarActions(activeView.id); });
+const sidebarNavUl = document.querySelector('.sidebar-nav ul');
+if (sidebarNavUl) sidebarNavUl.addEventListener('click', function(e){ const link=e.target.closest('a[data-view]'); if(!link) return; e.preventDefault(); switchView(link.dataset.view); });
+if (mobileNav) mobileNav.addEventListener('click', function(e) { const link = e.target.closest('a[data-view]'); if (!link) return; e.preventDefault(); switchView(link.dataset.view); });
 
-// UPDATED: Filter listeners
-document.querySelector('.right-actions').addEventListener('click', function(e){ const btn=e.target.closest('.filter-btn'); if(!btn) return; filterButtons.forEach(b=>b.classList.remove('active')); btn.classList.add('active'); applyFilters(); });
-timeFilterSelect.addEventListener('change', applyFilters);
+const rightActions = document.querySelector('.right-actions');
+if (rightActions) rightActions.addEventListener('click', function(e){ const btn=e.target.closest('.filter-btn'); if(!btn) return; filterButtons.forEach(b=>b.classList.remove('active')); btn.classList.add('active'); applyFilters(); });
+if (timeFilterSelect) timeFilterSelect.addEventListener('change', applyFilters);
 
-headerAddBtn.addEventListener('click', ()=> switchView('add-expense')); cancelBtn.addEventListener('click', ()=> switchView('home')); expenseTypeBoxes.forEach(box=>{ box.addEventListener('click', function(){ expenseTypeBoxes.forEach(b=>b.classList.remove('selected')); this.classList.add('selected'); expenseTypeInput.value=this.dataset.type; }); });
-function showBudgetModal(){ const now=new Date(); budgetMonthInput.value=formatMonthLabel(now); const bk=getCurrentMonthKey(); const existing=getBudgetForMonth(bk); budgetAmountInput.value=existing!=null?Number(existing):''; budgetModal.classList.add('show'); budgetModal.setAttribute('aria-hidden','false'); budgetAmountInput.focus(); }
-function hideBudgetModal(){ budgetModal.classList.remove('show'); budgetModal.setAttribute('aria-hidden','true'); }
-setBudgetBtn.addEventListener('click', showBudgetModal); budgetModalClose.addEventListener('click', hideBudgetModal); budgetCancel.addEventListener('click', hideBudgetModal); 
-addExpenseForm.addEventListener('submit', function(e){ e.preventDefault(); const monthKey = getCurrentMonthKey(); if (getIncomeForMonth(monthKey) === null) { showIncomeModal(true); return; } const files = billPhotoUploadInput.files; const hasBillPhoto = files && files.length > 0; const newExpense={ id: Date.now(), date:document.getElementById('expense-date').value, desc:document.getElementById('expense-desc').value, cat:document.getElementById('expense-category').value, amount:parseFloat(document.getElementById('expense-amount').value), type:document.getElementById('expense-type').value, paymentMethod:document.getElementById('payment-method').value, location:document.getElementById('location').value, mood:document.getElementById('mood').value, billPhoto: hasBillPhoto ? true : false }; allExpenses.unshift(newExpense); if (hasBillPhoto) { addBillPhotoToGallery(files[0], newExpense); } else { saveData(); } addExpenseForm.reset(); billPhotoUploadInput.value = ''; expenseTypeBoxes.forEach(b=>b.classList.remove('selected')); document.querySelector('.type-box[data-type="personal"]').classList.add('selected'); expenseTypeInput.value='personal'; expenseDateInput.value=new Date().toISOString().split('T')[0]; switchView('home'); });
-document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ if(welcomeModal.classList.contains('show')) hideWelcomeModal(); else if(budgetModal.classList.contains('show')) hideBudgetModal(); else if(incomeModal.classList.contains('show')) hideIncomeModal(); else if(addPaymentModal.classList.contains('show')) hideAddPaymentModal(); else if(deleteModal.classList.contains('show')) hideDeleteModal(); else if(deletePaymentModal.classList.contains('show')) hideDeletePaymentModal(); else if(photoModal.classList.contains('show')) hidePhotoModal(); else if(editExpenseModal.classList.contains('show')) hideEditModal(); } });
+if (headerAddBtn) headerAddBtn.addEventListener('click', ()=> switchView('add-expense')); 
+if (cancelBtn) cancelBtn.addEventListener('click', ()=> switchView('home')); 
+if (expenseTypeBoxes) expenseTypeBoxes.forEach(box=>{ box.addEventListener('click', function(){ expenseTypeBoxes.forEach(b=>b.classList.remove('selected')); this.classList.add('selected'); if (expenseTypeInput) expenseTypeInput.value=this.dataset.type; }); });
+
+// UPDATED: showBudgetModal function (with guards)
+function showBudgetModal(){
+    const now=new Date();
+    const monthKey = getCurrentMonthKey();
+    const existingBudget = getBudgetForMonth(monthKey); // This will be an object or null
+    
+    if (budgetMonthInput) budgetMonthInput.value = formatMonthLabel(now);
+    
+    // Clear old category rows (with guard)
+    const catContainer = document.getElementById('category-budgets-container');
+    if (catContainer) {
+        catContainer.innerHTML = '';
+        if (existingBudget && existingBudget.categories) {
+            for (const category in existingBudget.categories) {
+                addCategoryBudgetRow(category, existingBudget.categories[category]);
+            }
+        }
+    }
+
+    if (existingBudget) {
+        if (budgetAmountInput) budgetAmountInput.value = existingBudget.total || '';
+    } else {
+        if (budgetAmountInput) budgetAmountInput.value = '';
+    }
+    
+    if (budgetModal) {
+        budgetModal.classList.add('show');
+        budgetModal.setAttribute('aria-hidden','false');
+    }
+    if (budgetAmountInput) budgetAmountInput.focus();
+}
+function hideBudgetModal(){ if (budgetModal) { budgetModal.classList.remove('show'); budgetModal.setAttribute('aria-hidden','true'); } }
+if (setBudgetBtn) setBudgetBtn.addEventListener('click', showBudgetModal); 
+if (budgetModalClose) budgetModalClose.addEventListener('click', hideBudgetModal); 
+if (budgetCancel) budgetCancel.addEventListener('click', hideBudgetModal); 
+
+if (addExpenseForm) addExpenseForm.addEventListener('submit', function(e){ e.preventDefault(); const monthKey = getCurrentMonthKey(); if (getIncomeForMonth(monthKey) === null) { showIncomeModal(true); return; } const files = billPhotoUploadInput.files; const hasBillPhoto = files && files.length > 0; const newExpense={ id: Date.now(), date:document.getElementById('expense-date').value, desc:document.getElementById('expense-desc').value, cat:document.getElementById('expense-category').value, amount:parseFloat(document.getElementById('expense-amount').value), type:document.getElementById('expense-type').value, paymentMethod:document.getElementById('payment-method').value, location:document.getElementById('location').value, mood:document.getElementById('mood').value, billPhoto: hasBillPhoto ? true : false }; allExpenses.unshift(newExpense); if (hasBillPhoto) { addBillPhotoToGallery(files[0], newExpense); } else { saveData(); } addExpenseForm.reset(); if (billPhotoUploadInput) billPhotoUploadInput.value = ''; expenseTypeBoxes.forEach(b=>b.classList.remove('selected')); const defaultTypeBox = document.querySelector('.type-box[data-type="personal"]'); if (defaultTypeBox) defaultTypeBox.classList.add('selected'); if (expenseTypeInput) expenseTypeInput.value='personal'; if (expenseDateInput) expenseDateInput.value=new Date().toISOString().split('T')[0]; switchView('home'); });
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ if(welcomeModal && welcomeModal.classList.contains('show')) hideWelcomeModal(); else if(budgetModal && budgetModal.classList.contains('show')) hideBudgetModal(); else if(incomeModal && incomeModal.classList.contains('show')) hideIncomeModal(); else if(addPaymentModal && addPaymentModal.classList.contains('show')) hideAddPaymentModal(); else if(deleteModal && deleteModal.classList.contains('show')) hideDeleteModal(); else if(deletePaymentModal && deletePaymentModal.classList.contains('show')) hideDeletePaymentModal(); else if(photoModal && photoModal.classList.contains('show')) hidePhotoModal(); else if(editExpenseModal && editExpenseModal.classList.contains('show')) hideEditModal(); else if(mobileFilterModal && mobileFilterModal.classList.contains('show')) mobileFilterModal.classList.remove('show'); else if(notificationModal && notificationModal.classList.contains('show')) hideNotificationModal(); } });
 function escapeHtml(str){ return String(str).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;'); }
 
 initializeApp();
