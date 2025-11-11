@@ -44,7 +44,6 @@
         <li><a data-view="dashboard"><i class="fas fa-tachometer-alt"></i><span class="label">Dashboard</span></a></li>
         <li><a data-view="add-expense"><i class="fas fa-plus"></i><span class="label">Add Expense</span></a></li>
         <li><a data-view="all-expenses"><i class="fas fa-wallet"></i><span class="label">All Expenses</span></a></li>
-        <!-- CHANGED: Renamed to "Bills" and updated icon -->
         <li><a data-view="bill-photos"><i class="fas fa-receipt"></i><span class="label">Bills</span></a></li>
       </ul>
     </nav>
@@ -67,7 +66,6 @@
           <button class="filter-btn" data-filter="organization"><i class="fas fa-building"></i> Organization</button>
         </div>
         
-        <!-- NEW: Time Filter Dropdown -->
         <div id="time-filter-group" class="time-filter-group">
             <select id="time-filter-select" class="topbar-select" aria-label="Time period filter">
                 <option value="this-month">This Month</option>
@@ -78,8 +76,10 @@
             </select>
         </div>
         
-        <!-- Wrapped buttons for better mobile wrapping -->
         <div class="topbar-actions-group">
+          <button id="mobile-filter-btn" class="ghost-btn">
+            <i class="fas fa-filter"></i><span> Filter</span>
+          </button>
           <button id="set-income-btn" class="ghost-btn"><i class="fas fa-chart-line"></i><span> Set Income</span></button>
           <button id="set-budget-btn" class="ghost-btn"><i class="fas fa-bullseye"></i><span> Set Budget</span></button>
           <button id="header-add-btn" class="add-btn"><i class="fas fa-plus"></i><span> Add Expense</span></button>
@@ -160,7 +160,15 @@
     </div>
 
     <div id="dashboard-view" class="view">
-      <div id="budget-banner" class="budget-banner hidden"><i class="fa-solid fa-triangle-exclamation"></i><span id="budget-banner-text">You have crossed your monthly budget.</span></div>
+      <div id="budget-banner" class="budget-banner hidden">
+        <div class="budget-banner-summary">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span id="budget-banner-text">You have crossed your monthly budget.</span>
+          <button id="budget-banner-toggle" class="budget-banner-toggle">View Details <i class="fas fa-chevron-down"></i></button>
+        </div>
+        <div id="budget-banner-details" class="budget-banner-details">
+          </div>
+      </div>
       <div class="cards-container">
         <div class="stat-card"><div class="icon income"><i class="fas fa-hand-holding-usd"></i></div><div class="info"><p>MONTHLY INCOME</p><h3 id="monthly-income">₹0.00</h3><p>Total received</p></div></div>
         <div class="stat-card"><div class="icon dollar"><i class="fas fa-rupee-sign"></i></div><div class="info"><p>THIS MONTH SPENT</p><h3 id="this-month-spent">₹0.00</h3><p>Expenses so far</p></div></div>
@@ -248,23 +256,16 @@
     
     <div id="bill-photos-view" class="view">
         <div class="card">
-            <!-- CHANGED: Title and description -->
             <h2>Bills & Receipts</h2>
             <p>Photos added from the 'Add Expense' view appear here. Click on an image to view it larger.</p>
 
             <div class="bill-gallery" id="bill-gallery">
-                <!-- Content injected by JS -->
-            </div>
+                </div>
         </div>
     </div>
   </main>
 
-  <!-- 
-    **** NEW FEATURE ****
-    This is the new mobile-only bottom navigation bar.
-    It's hidden on desktop by CSS.
-    It provides a much better UX for phone users.
-  -->
+  
   <nav class="mobile-bottom-nav">
     <a data-view="home" class="mobile-nav-link active">
       <i class="fas fa-house"></i>
@@ -276,20 +277,17 @@
     </a>
     <a data-view="add-expense" class="mobile-nav-link add-expense-fab">
       <i class="fas fa-plus"></i>
-      <span>Add</span> <!-- This span will be hidden by CSS but is good for accessibility -->
-    </a>
+      <span>Add</span> </a>
     <a data-view="all-expenses" class="mobile-nav-link">
       <i class="fas fa-wallet"></i>
       <span>Expenses</span>
     </a>
-    <!-- CHANGED: Renamed to "Bills" and updated icon -->
     <a data-view="bill-photos" class="mobile-nav-link">
       <i class="fas fa-receipt"></i>
       <span>Bills</span>
     </a>
   </nav>
     
-  <!-- All modals remain structurally the same -->
   <div id="welcome-modal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="welcome-modal-title">
     <div class="modal-dialog">
       <div class="modal-header">
@@ -312,11 +310,33 @@
     <div class="modal-dialog">
       <button class="modal-close" id="budget-modal-close" aria-label="Close budget modal"><i class="fa-solid fa-xmark"></i></button>
       <div class="modal-header"><h3 id="budget-modal-title"><i class="fa-solid fa-bullseye"></i> Set Monthly Budget</h3><p class="modal-subtitle">Choose an amount to cap your spending for the current month.</p></div>
+      
       <form id="budget-form" class="modal-body">
         <div class="form-group"><label for="budget-month">Month</label><input type="text" id="budget-month" readonly /></div>
-        <div class="form-group"><label for="budget-amount">Budget Amount (₹) *</label><input type="number" id="budget-amount" placeholder="₹ 0.00" step="0.01" min="0" required /></div>
-        <div class="modal-actions"><button type="button" class="btn secondary" id="budget-cancel">Cancel</button><button type="submit" class="btn primary">Save Budget</button></div>
+        
+        <div class="form-group">
+            <label for="budget-amount">Total Budget Amount (₹) *</label>
+            <input type="number" id="budget-amount" placeholder="₹ 500.00" step="0.01" min="0" required />
+        </div>
+        
+        <hr style="border:0; border-top:1px solid #eee; margin: 1.5rem 0;">
+        
+        <h4 style="margin: 0 0 1rem 0; color: #000;">Category Budgets (Optional)</h4>
+        <p class="modal-subtitle" style="margin-top:-0.75rem; margin-bottom: 1rem;">Set specific budgets for categories. Must be less than your total budget.</p>
+        
+        <div id="category-budgets-container">
+            </div>
+        
+        <button type="button" id="add-category-budget-btn" class="btn secondary" style="width: 100%; text-align: center; background: #f9f9f9;">
+            <i class="fas fa-plus"></i> Add Category Budget
+        </button>
+        
+        <div class="modal-actions" style="margin-top: 1.5rem;">
+            <button type="button" class="btn secondary" id="budget-cancel">Cancel</button>
+            <button type="submit" class="btn primary">Save Budget</button>
+        </div>
       </form>
+
     </div>
   </div>
 
@@ -451,6 +471,33 @@
       </form>
     </div>
   </div>
+
+  <div id="mobile-filter-modal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="mobile-filter-title">
+    <div class="modal-dialog">
+      <button class="modal-close" id="mobile-filter-close" aria-label="Close filter modal"><i class="fa-solid fa-xmark"></i></button>
+      <div class="modal-header">
+          <h3 id="mobile-filter-title"><i class="fas fa-filter"></i> Filter by Type</h3>
+      </div>
+      <div class="modal-body" id="mobile-filter-options" style="display: flex; flex-direction: column; gap: 0.75rem;">
+          </div>
+    </div>
+  </div>
+
+  <div id="notification-modal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="notification-modal-title">
+    <div class="modal-dialog">
+      <button class="modal-close" id="notification-modal-close" aria-label="Close notification"><i class="fa-solid fa-xmark"></i></button>
+      <div class="modal-header">
+          <h3 id="notification-modal-title"><i class="fa-solid fa-circle-info"></i> Notification</h3>
+      </div>
+      <div class="modal-body">
+          <p id="notification-modal-message">This is a notification message.</p>
+      </div>
+      <div class="modal-actions">
+          <button type="button" class="btn primary" id="notification-modal-ok">OK</button>
+      </div>
+    </div>
+  </div>
+
 
   <script src="script.js"></script>
 </body>
